@@ -1,5 +1,6 @@
 import { motion, useInView, useScroll, useTransform } from 'framer-motion';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import HoneycombDecoration from '../components/HoneycombDecoration';
 
 const services = [
   { name: 'DESIGN', angle: 180 },
@@ -8,56 +9,241 @@ const services = [
   { name: 'CONVERSION', angle: 90 },
 ];
 
+/* ─── styles injected once via <style> tag ────────────────────────────── */
+const ringStyles = `
+  @keyframes scanner-rotate {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  .services-ring-wrapper {
+    --scanner-duration: 14s;
+  }
+
+  .services-ring-wrapper:hover .scanner-arc,
+  .services-ring-wrapper.active .scanner-arc {
+    filter: drop-shadow(0 0 6px rgba(163,230,53,0.35));
+    animation-duration: 12s !important;
+  }
+
+  .services-ring-wrapper:hover .ring-outer,
+  .services-ring-wrapper.active .ring-outer {
+    filter: drop-shadow(0 0 4px rgba(163,230,53,0.2));
+  }
+
+  .scanner-arc {
+    animation: scanner-rotate var(--scanner-duration) linear infinite;
+    transform-origin: 300px 300px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scanner-arc {
+      animation: none !important;
+    }
+    .services-ring-wrapper:hover .scanner-arc {
+      animation: none !important;
+    }
+  }
+
+  /* Crosshair gradient lines */
+  .crosshair-h {
+    background: linear-gradient(
+      to right,
+      transparent 0%,
+      rgba(163,230,53,0.04) 20%,
+      rgba(163,230,53,0.12) 45%,
+      rgba(163,230,53,0.12) 55%,
+      rgba(163,230,53,0.04) 80%,
+      transparent 100%
+    );
+  }
+
+  .crosshair-v {
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      rgba(163,230,53,0.04) 20%,
+      rgba(163,230,53,0.12) 45%,
+      rgba(163,230,53,0.12) 55%,
+      rgba(163,230,53,0.04) 80%,
+      transparent 100%
+    );
+  }
+`;
+
+/* ─── Circular ring with dual-stroke, scanner, and upgraded ticks ───── */
 const CircularDashedLine = ({ style }: { style?: any }) => {
+  const R = 280;        // ring radius
+  const CX = 300;       // center X
+  const CY = 300;       // center Y
+  const TICKS = 24;     // total tick marks
+
+  /* Build tick data: major at 0°/90°/180°/270° (indices 0,6,12,18) */
+  const ticks = [...Array(TICKS)].map((_, i) => {
+    const angleDeg = i * (360 / TICKS);
+    const angleRad = (angleDeg * Math.PI) / 180;
+    const isMajor = i % 6 === 0;
+    const innerR = isMajor ? R - 30 : R - 18;
+    const outerR = R + 2;
+    const strokeW = isMajor ? 4.5 : 2.5;
+    const opacity = isMajor ? 1 : 0.85;
+
+    return {
+      x1: CX + innerR * Math.cos(angleRad),
+      y1: CY + innerR * Math.sin(angleRad),
+      x2: CX + outerR * Math.cos(angleRad),
+      y2: CY + outerR * Math.sin(angleRad),
+      strokeW,
+      opacity,
+      isMajor,
+      id: `tick-grad-${i}`,
+      angleDeg,
+      angleRad,
+    };
+  });
+
+  /* Scanner arc path (≈45° arc on the ring) */
+  const scannerStartAngle = 0;
+  const scannerEndAngle = 50;
+  const startRad = (scannerStartAngle * Math.PI) / 180;
+  const endRad = (scannerEndAngle * Math.PI) / 180;
+  const scannerPath = [
+    `M ${CX + R * Math.cos(startRad)} ${CY + R * Math.sin(startRad)}`,
+    `A ${R} ${R} 0 0 1 ${CX + R * Math.cos(endRad)} ${CY + R * Math.sin(endRad)}`,
+  ].join(' ');
+
   return (
-    <motion.svg
-      style={style}
-      className="absolute inset-0 w-full h-full"
-      viewBox="0 0 600 600"
-      fill="none"
-    >
-      <motion.circle
-        cx="300"
-        cy="300"
-        r="280"
-        stroke="#a3e635"
-        strokeWidth="2"
-        strokeDasharray="20 15"
+    <>
+      <style>{ringStyles}</style>
+      <motion.svg
+        style={style}
+        className="absolute inset-0 w-full h-full"
+        viewBox="0 0 600 600"
         fill="none"
-        initial={{ pathLength: 0 }}
-        whileInView={{ pathLength: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 2, ease: "easeInOut" }}
-      />
-      {/* Tick marks */}
-      {[...Array(24)].map((_, i) => {
-        const angle = (i * 15 * Math.PI) / 180;
-        const x1 = 300 + 265 * Math.cos(angle);
-        const y1 = 300 + 265 * Math.sin(angle);
-        const x2 = 300 + 280 * Math.cos(angle);
-        const y2 = 300 + 280 * Math.sin(angle);
-        return (
+      >
+        <defs>
+          {/* Gradient for the outer ring stroke */}
+          <linearGradient id="ring-outer-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#a3e635" stopOpacity="0.45" />
+            <stop offset="50%" stopColor="#a3e635" stopOpacity="0.6" />
+            <stop offset="100%" stopColor="#a3e635" stopOpacity="0.45" />
+          </linearGradient>
+
+          {/* Gradient for the inner ring stroke */}
+          <linearGradient id="ring-inner-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#a3e635" stopOpacity="0.7" />
+            <stop offset="50%" stopColor="#a3e635" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#a3e635" stopOpacity="0.7" />
+          </linearGradient>
+
+          {/* Scanner arc gradient */}
+          <linearGradient id="scanner-grad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#a3e635" stopOpacity="0" />
+            <stop offset="20%" stopColor="#a3e635" stopOpacity="0.8" />
+            <stop offset="60%" stopColor="#a3e635" stopOpacity="1" />
+            <stop offset="100%" stopColor="#a3e635" stopOpacity="0" />
+          </linearGradient>
+
+          {/* Tick fade gradients — from lime to transparent outward */}
+          {ticks.map((t) => (
+            <linearGradient
+              key={t.id}
+              id={t.id}
+              x1={t.x1}
+              y1={t.y1}
+              x2={t.x2}
+              y2={t.y2}
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0%" stopColor="#a3e635" stopOpacity={t.opacity * 0.5} />
+              <stop offset="100%" stopColor="#a3e635" stopOpacity={t.opacity} />
+            </linearGradient>
+          ))}
+        </defs>
+
+        {/* ── 1) Outer ring: thin, low opacity ──────────────────────── */}
+        <motion.circle
+          className="ring-outer"
+          cx={CX}
+          cy={CY}
+          r={R}
+          stroke="url(#ring-outer-grad)"
+          strokeWidth="2"
+          strokeDasharray="20 12"
+          fill="none"
+          initial={{ pathLength: 0 }}
+          whileInView={{ pathLength: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 2, ease: 'easeInOut' }}
+        />
+
+        {/* ── 2) Inner ring: brighter, slightly inset ───────────────── */}
+        <motion.circle
+          cx={CX}
+          cy={CY}
+          r={R - 4}
+          stroke="url(#ring-inner-grad)"
+          strokeWidth="2.5"
+          strokeDasharray="6 16"
+          fill="none"
+          initial={{ pathLength: 0 }}
+          whileInView={{ pathLength: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 2.2, ease: 'easeInOut', delay: 0.15 }}
+        />
+
+        {/* ── 3) Scanner highlight arc ──────────────────────────────── */}
+        <path
+          className="scanner-arc"
+          d={scannerPath}
+          stroke="url(#scanner-grad)"
+          strokeWidth="5"
+          strokeLinecap="round"
+          fill="none"
+        />
+
+        {/* ── 4) Tick marks — major / minor ─────────────────────────── */}
+        {ticks.map((t, i) => (
           <motion.line
             key={i}
-            x1={x1}
-            y1={y1}
-            x2={x2}
-            y2={y2}
-            stroke="#a3e635"
-            strokeWidth="2"
+            x1={t.x1}
+            y1={t.y1}
+            x2={t.x2}
+            y2={t.y2}
+            stroke={`url(#${t.id})`}
+            strokeWidth={t.strokeW}
+            strokeLinecap="round"
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ delay: 0.5 + i * 0.02 }}
           />
-        );
-      })}
-    </motion.svg>
+        ))}
+
+        {/* ── 5) Small diamond markers at major tick positions ──────── */}
+        {ticks.filter(t => t.isMajor).map((t, i) => {
+          const mx = CX + (R + 6) * Math.cos(t.angleRad);
+          const my = CY + (R + 6) * Math.sin(t.angleRad);
+          return (
+            <motion.polygon
+              key={`diamond-${i}`}
+              points={`${mx},${my - 3} ${mx + 2},${my} ${mx},${my + 3} ${mx - 2},${my}`}
+              fill="#a3e635"
+              fillOpacity="0.6"
+              initial={{ opacity: 0, scale: 0 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: 1.2 + i * 0.1 }}
+            />
+          );
+        })}
+      </motion.svg>
+    </>
   );
 };
 
 const ServiceLabel = ({ name, angle, index }: { name: string; angle: number; index: number }) => {
-  const radiusPercent = 51; // Brought closer (was 53) to help fit in viewport, still outside ring
+  const radiusPercent = 48; // Brought closer (was 53) to help fit in viewport, still outside ring
   const radian = (angle * Math.PI) / 180;
 
   // Calculate position on the circle (center of the dot)
@@ -88,46 +274,37 @@ const ServiceLabel = ({ name, angle, index }: { name: string; angle: number; ind
       viewport={{ once: true }}
       transition={{ delay: 0.8 + index * 0.15, duration: 0.4 }}
     >
-      {/* Dot - Centered exactly on the anchoring point */}
-      <span className="absolute w-2 h-2 md:w-3 md:h-3 bg-lime rounded-full -translate-x-1/2 -translate-y-1/2" />
-
-      {/* Label - Positioned relative to the dot */}
+      {/* Label with animated underline */}
       <span className={`absolute font-display text-sm sm:text-base md:text-lg lg:text-xl text-black tracking-wide whitespace-nowrap ${textClasses}`}>
-        {name}
+        <span className="relative inline-block">
+          {name}
+          {/* Animated underline */}
+          <motion.span
+            className="absolute left-0 bottom-[-4px] h-[2px] w-full rounded-full"
+            style={{
+              background: 'linear-gradient(90deg, #a3e635 0%, rgba(163,230,53,0.3) 100%)',
+              transformOrigin: 'left center',
+            }}
+            initial={{ scaleX: 0, opacity: 0 }}
+            whileInView={{ scaleX: 1, opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{
+              delay: 1.2 + index * 0.15,
+              duration: 0.6,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+          />
+        </span>
       </span>
     </motion.div>
   );
 };
 
-const HoneycombDecoration = ({ className = "" }: { className?: string }) => (
-  <svg
-    className={`absolute ${className} w-20 h-24 md:w-32 md:h-36`}
-    viewBox="0 0 150 170"
-    fill="none"
-  >
-    {[...Array(9)].map((_, i) => {
-      const row = Math.floor(i / 3);
-      const col = i % 3;
-      const x = col * 50 + (row % 2) * 25;
-      const y = row * 45;
-      const isFilled = [1, 3, 5, 7].includes(i);
-      return (
-        <path
-          key={i}
-          d={`M${x + 25} ${y} L${x + 50} ${y + 15} L${x + 50} ${y + 40} L${x + 25} ${y + 55} L${x} ${y + 40} L${x} ${y + 15} Z`}
-          fill={isFilled ? "#a3e635" : "none"}
-          stroke="#a3e635"
-          strokeWidth="1"
-          fillOpacity={isFilled ? 0.25 : 0}
-        />
-      );
-    })}
-  </svg>
-);
 
 export default function Services() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const [isHovered, setIsHovered] = useState(false);
 
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -140,14 +317,34 @@ export default function Services() {
     // Increased padding-bottom to avoid clipping the bottom label
     <section ref={ref} className="relative min-h-screen bg-[#f5f5f5] overflow-hidden pt-8 md:pt-12 pb-48 md:pb-64">
       {/* Honeycomb decorations */}
-      <HoneycombDecoration className="left-2 md:left-4 top-10 md:top-20 opacity-50 hidden sm:block" />
-      <HoneycombDecoration className="right-4 md:right-8 bottom-10 md:bottom-20 opacity-40 scale-75 hidden md:block" />
-      <HoneycombDecoration className="left-8 md:left-16 bottom-20 md:bottom-32 opacity-30 scale-50 hidden lg:block" />
+      {/* Honeycomb decorations */}
+      <HoneycombDecoration className="left-2 md:left-4 top-6 md:top-14 w-48 h-56 md:w-64 md:h-72 opacity-60 hidden sm:block" />
+      <HoneycombDecoration className="right-4 md:right-8 bottom-8 md:bottom-16 w-44 h-52 md:w-56 md:h-64 opacity-45 hidden md:block" />
+      <HoneycombDecoration className="left-8 md:left-16 bottom-16 md:bottom-28 w-36 h-44 md:w-48 md:h-56 opacity-30 hidden lg:block" />
 
       {/* Centered circular services layout */}
       <div className="absolute inset-0 flex items-center justify-center z-0 pointer-events-none">
         {/* Main Responsive Square Container */}
-        <div className="relative w-[220px] h-[220px] sm:w-[320px] sm:h-[320px] md:w-[420px] md:h-[420px] lg:w-[520px] lg:h-[520px]">
+        <div
+          className={`services-ring-wrapper relative w-[220px] h-[220px] sm:w-[320px] sm:h-[320px] md:w-[420px] md:h-[420px] lg:w-[520px] lg:h-[520px] pointer-events-auto ${isHovered ? 'active' : ''}`}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+
+          {/* Horizontal crosshair - gradient fade */}
+          <motion.div
+            className="crosshair-h absolute top-1/2 left-[-100vw] right-[-100vw] h-px hidden md:block"
+            initial={{ scaleX: 0 }}
+            animate={isInView ? { scaleX: 1 } : {}}
+            transition={{ delay: 1, duration: 0.8 }}
+          />
+          {/* Vertical crosshair - gradient fade */}
+          <motion.div
+            className="crosshair-v absolute left-1/2 top-[-100vh] bottom-[-100vh] w-px hidden md:block"
+            initial={{ scaleY: 0 }}
+            animate={isInView ? { scaleY: 1 } : {}}
+            transition={{ delay: 1.2, duration: 0.8 }}
+          />
 
           {/* Dashed circle */}
           <CircularDashedLine style={{ rotate: rotation }} />
@@ -163,20 +360,6 @@ export default function Services() {
               />
             ))}
           </div>
-
-          {/* Horizontal guide lines - hidden on mobile, centered in wrapper */}
-          <motion.div
-            className="absolute top-1/2 left-[-100vw] right-[-100vw] h-px bg-gray-300 hidden md:block" // Wide lines
-            initial={{ scaleX: 0 }}
-            animate={isInView ? { scaleX: 1 } : {}}
-            transition={{ delay: 1, duration: 0.8 }}
-          />
-          <motion.div
-            className="absolute left-1/2 top-[-100vh] bottom-[-100vh] w-px bg-gray-300 hidden md:block" // Tall lines
-            initial={{ scaleY: 0 }}
-            animate={isInView ? { scaleY: 1 } : {}}
-            transition={{ delay: 1.2, duration: 0.8 }}
-          />
         </div>
       </div>
     </section>

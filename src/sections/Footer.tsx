@@ -1,5 +1,6 @@
 import { motion, useInView } from 'framer-motion';
 import { useRef } from 'react';
+import HoneycombDecoration from '../components/HoneycombDecoration';
 
 const footerLinks = {
     services: [
@@ -22,26 +23,7 @@ const footerLinks = {
     ],
 };
 
-const HoneycombSmall = () => (
-    <svg className="w-16 h-16 opacity-20" viewBox="0 0 100 100" fill="none">
-        {[0, 1, 2].map((row) =>
-            [0, 1].map((col) => {
-                const x = col * 40 + (row % 2) * 20;
-                const y = row * 30;
-                return (
-                    <path
-                        key={`${row}-${col}`}
-                        d={`M${x + 15} ${y} L${x + 30} ${y + 10} L${x + 30} ${y + 25} L${x + 15} ${y + 35} L${x} ${y + 25} L${x} ${y + 10} Z`}
-                        stroke="#a3e635"
-                        strokeWidth="0.5"
-                        fill={row === 1 && col === 0 ? '#a3e635' : 'none'}
-                        fillOpacity={0.15}
-                    />
-                );
-            })
-        )}
-    </svg>
-);
+
 
 export default function Footer() {
     const ref = useRef(null);
@@ -130,7 +112,9 @@ export default function Footer() {
                         <p className="text-gray-500 text-sm leading-relaxed max-w-xs mb-6">
                             We design immersive, motion-driven websites that command attention and guide users to act.
                         </p>
-                        <HoneycombSmall />
+                        <div className="relative w-24 h-28">
+                            <HoneycombDecoration className="inset-0 w-24 h-28 opacity-30" />
+                        </div>
                     </motion.div>
 
                     {/* Services column */}

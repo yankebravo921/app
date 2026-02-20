@@ -1,34 +1,6 @@
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
-
-const HoneycombDecoration = ({ className = "" }: { className?: string }) => (
-  <svg
-    className={`absolute ${className} w-24 h-28 md:w-40 md:h-44`}
-    viewBox="0 0 200 230"
-    fill="none"
-  >
-    {[...Array(12)].map((_, i) => {
-      const row = Math.floor(i / 4);
-      const col = i % 4;
-      const x = col * 50 + (row % 2) * 25;
-      const y = row * 45;
-      const isFilled = [0, 2, 5, 7, 9, 10].includes(i);
-      return (
-        <motion.path
-          key={i}
-          d={`M${x + 25} ${y} L${x + 50} ${y + 15} L${x + 50} ${y + 40} L${x + 25} ${y + 55} L${x} ${y + 40} L${x} ${y + 15} Z`}
-          fill={isFilled ? "#a3e635" : "none"}
-          stroke="#a3e635"
-          strokeWidth="1"
-          fillOpacity={isFilled ? 0.3 : 0}
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: i * 0.05, duration: 0.3 }}
-        />
-      );
-    })}
-  </svg>
-);
+import HoneycombDecoration from '../components/HoneycombDecoration';
 
 export default function Hero() {
   const [scrollY, setScrollY] = useState(0);
@@ -42,8 +14,8 @@ export default function Hero() {
   return (
     <section className="relative min-h-screen bg-[#f5f5f5] overflow-hidden flex items-center">
       {/* Honeycomb decorations - hidden on small mobile */}
-      <HoneycombDecoration className="left-2 md:left-8 bottom-20 md:bottom-32 opacity-60 hidden sm:block" />
-      <HoneycombDecoration className="right-4 md:right-16 top-16 md:top-24 opacity-40 scale-75 hidden md:block" />
+      <HoneycombDecoration className="left-2 md:left-8 bottom-16 md:bottom-28 w-48 h-56 md:w-64 md:h-72 opacity-60 hidden sm:block" />
+      <HoneycombDecoration className="right-4 md:right-16 top-12 md:top-20 w-44 h-52 md:w-56 md:h-64 opacity-40 hidden md:block" />
 
       {/* Vertical scroll indicator line - hidden on mobile */}
       <motion.div

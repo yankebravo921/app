@@ -14,8 +14,8 @@ const SLOGANS = [
 // ============================================================
 // CONFIGURATION
 // ============================================================
-const BLUR_AMOUNT = 10;        // Max blur in px when letter is hidden
-const LETTER_Y_SHIFT = 20;    // Y offset in px when letter is hidden
+const BLUR_AMOUNT = 8;         // Max blur in px when letter is hidden
+const LETTER_Y_SHIFT = 14;     // Y offset in px when letter is hidden
 
 // ============================================================
 // LetterReveal — Renders text with per-letter fade animation
@@ -62,8 +62,8 @@ function ScrollSlogans() {
   const numSlogans = SLOGANS.length;
 
   // Total height = enough scroll for each slogan to have its moment
-  // Each slogan gets 100vh of scroll space
-  const totalHeightVh = numSlogans * 100;
+  // Each slogan gets 180vh of scroll space for slower, smoother transitions
+  const totalHeightVh = numSlogans * 180;
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -84,30 +84,33 @@ function ScrollSlogans() {
     // Clamp index
     const safeIdx = Math.min(idx, numSlogans - 1);
 
-    // Within each segment:
-    //   0.0–0.3: slogan is fully visible (hold)
-    //   0.3–0.5: slogan fades OUT (letters disappear)
-    //   0.5–0.8: next slogan fades IN (letters appear)
-    //   0.8–1.0: next slogan fully visible (hold)
+    // Within each segment (wider windows = smoother transitions):
+    //   0.00–0.35: slogan is fully visible (long hold)
+    //   0.35–0.50: slogan fades OUT slowly (letters disappear)
+    //   0.50–0.70: next slogan fades IN slowly (letters appear)
+    //   0.70–1.00: next slogan fully visible (long hold)
+
+    // Smooth easing function for fade transitions
+    const easeInOut = (t: number) => t * t * (3 - 2 * t);
 
     if (safeIdx >= numSlogans - 1) {
       // Last slogan — just show it
       setCurrentIndex(numSlogans - 1);
       setLetterVisibility(1);
-    } else if (frac <= 0.3) {
+    } else if (frac <= 0.35) {
       // Hold current slogan fully visible
       setCurrentIndex(safeIdx);
       setLetterVisibility(1);
-    } else if (frac <= 0.5) {
-      // Fade OUT current slogan
-      const fadeOutProgress = (frac - 0.3) / 0.2; // 0 to 1
+    } else if (frac <= 0.50) {
+      // Fade OUT current slogan (smoothed)
+      const raw = (frac - 0.35) / 0.15;
       setCurrentIndex(safeIdx);
-      setLetterVisibility(1 - fadeOutProgress);
-    } else if (frac <= 0.8) {
-      // Fade IN next slogan
-      const fadeInProgress = (frac - 0.5) / 0.3; // 0 to 1
+      setLetterVisibility(1 - easeInOut(raw));
+    } else if (frac <= 0.70) {
+      // Fade IN next slogan (smoothed)
+      const raw = (frac - 0.50) / 0.20;
       setCurrentIndex(safeIdx + 1);
-      setLetterVisibility(fadeInProgress);
+      setLetterVisibility(easeInOut(raw));
     } else {
       // Hold next slogan fully visible
       setCurrentIndex(safeIdx + 1);

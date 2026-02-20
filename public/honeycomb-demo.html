@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Honeycomb Animation</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #f5f5f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #honeycomb-svg {
+      width: min(420px, 90vw);
+      /* ← tweak overall size */
+      height: auto;
+    }
+  </style>
+</head>
+
+<body>
+
+  <svg id="honeycomb-svg" viewBox="-60 -80 430 510" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <!-- Bloom / glow filter (dual blur for soft aura + tight core) -->
+      <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="blur1" />
+        <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur2" />
+        <feMerge>
+          <feMergeNode in="blur1" />
+          <feMergeNode in="blur2" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+    <g id="hexes-container"></g>
+  </svg>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════════════
+    //  CONFIGURATION — tweak these values
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const HEX_SIZE = 36;            // hex radius (px)
+    const STROKE_CLR = '#C5F56A';     // outline colour (pale neon green)
+    const FILL_CLR = '#B7FF66';     // lit fill colour (bright neon green)
+    const GLOW_CLR = '#B7FF66';     // glow colour
+
+    const CYCLE_S = 5;             // seconds for one full wave sweep
+    const WAVE_WIDTH = 1.2;           // how many "hex-widths" the wave spans (bigger = more lit at once)
+    const SHARPNESS = 1.8;           // power curve for brightness peak (higher = sharper)
+
+    // Hex IDs that NEVER light up (always outline-only for pattern variety)
+    const PASSIVE_IDS = [1, 4, 11, 16, 18];
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  HEX GRID — odd-r offset, pointy-top
+    //
+    //  Visual layout (id numbers):
+    //
+    //  Row 0:              [0]     [1]
+    //  Row 1:         [2]     [3]     [4]
+    //  Row 2:    [5]     [6]     [7]
+    //  Row 3: [8]    [9]    [10]    [11]
+    //  Row 4:    [12]    [13]    [14]
+    //  Row 5:         [15]    [16]
+    //  Row 6:              [17]    [18]
+    //
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const hexDefs = [
+      { id: 0, col: 3, row: 0 },
+      { id: 1, col: 4, row: 0 },
+      { id: 2, col: 2, row: 1 },
+      { id: 3, col: 3, row: 1 },
+      { id: 4, col: 4, row: 1 },
+      { id: 5, col: 1, row: 2 },
+      { id: 6, col: 2, row: 2 },
+      { id: 7, col: 3, row: 2 },
+      { id: 8, col: 0, row: 3 },
+      { id: 9, col: 1, row: 3 },
+      { id: 10, col: 2, row: 3 },
+      { id: 11, col: 3, row: 3 },
+      { id: 12, col: 1, row: 4 },
+      { id: 13, col: 2, row: 4 },
+      { id: 14, col: 3, row: 4 },
+      { id: 15, col: 2, row: 5 },
+      { id: 16, col: 3, row: 5 },
+      { id: 17, col: 3, row: 6 },
+      { id: 18, col: 4, row: 6 },
+    ];
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  COMPUTE POSITIONS & WAVE PHASES
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const SQRT3 = Math.sqrt(3);
+    const X_SP = SQRT3 * HEX_SIZE;         // ~62 px
+    const Y_SP = 1.5 * HEX_SIZE;           // 54 px
+    const HALF_X = X_SP / 2;
+
+    const hexes = hexDefs.map(h => {
+      const cx = h.col * X_SP + (h.row % 2 === 1 ? HALF_X : 0);
+      const cy = h.row * Y_SP;
+      // Diagonal phase: determines when this hex lights up in the wave
+      // Top-left lights first → bottom-right lights last
+      const diag = h.row + h.col * 0.6;
+      // Secondary perpendicular wave for organic feel
+      const perp = h.row - h.col * 0.4;
+      return {
+        id: h.id, cx, cy,
+        diag, perp,
+        isPassive: PASSIVE_IDS.includes(h.id),
+      };
+    });
+
+    // Normalize phases to [0 → 1] range
+    const dMin = Math.min(...hexes.map(h => h.diag));
+    const dMax = Math.max(...hexes.map(h => h.diag));
+    const pMin = Math.min(...hexes.map(h => h.perp));
+    const pMax = Math.max(...hexes.map(h => h.perp));
+
+    hexes.forEach(h => {
+      h.phase1 = (h.diag - dMin) / (dMax - dMin);   // 0 → 1
+      h.phase2 = (h.perp - pMin) / (pMax - pMin);   // 0 → 1
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  BUILD SVG HEXAGONS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function hexPoints(cx, cy, size) {
+      const pts = [];
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 180) * (60 * i - 30);
+        pts.push(
+          `${(cx + size * Math.cos(a)).toFixed(2)},${(cy + size * Math.sin(a)).toFixed(2)}`
+        );
+      }
+      return pts.join(' ');
+    }
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const container = document.getElementById('hexes-container');
+
+    // Cache DOM references for 60 fps updates
+    const glowEls = {};
+    const mainEls = {};
+
+    hexes.forEach(h => {
+      const pts = hexPoints(h.cx, h.cy, HEX_SIZE);
+
+      const g = document.createElementNS(NS, 'g');
+
+      // 1) Glow polygon (behind, blurred for bloom)
+      const glow = document.createElementNS(NS, 'polygon');
+      glow.setAttribute('points', pts);
+      glow.setAttribute('fill', GLOW_CLR);
+      glow.setAttribute('fill-opacity', '0.55');
+      glow.setAttribute('filter', 'url(#glow)');
+      glow.setAttribute('stroke', 'none');
+      glow.setAttribute('opacity', '0');
+      glowEls[h.id] = glow;
+
+      // 2) Main hex (outline + fill)
+      const main = document.createElementNS(NS, 'polygon');
+      main.setAttribute('points', pts);
+      main.setAttribute('fill', FILL_CLR);
+      main.setAttribute('fill-opacity', '0');
+      main.setAttribute('stroke', STROKE_CLR);
+      main.setAttribute('stroke-width', '1.8');
+      main.setAttribute('stroke-opacity', h.isPassive ? '0.3' : '0.4');
+      mainEls[h.id] = main;
+
+      g.appendChild(glow);
+      g.appendChild(main);
+      container.appendChild(g);
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SMOOTH ANIMATION LOOP (requestAnimationFrame — 60 fps)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const TWO_PI = 2 * Math.PI;
+    const omega = TWO_PI / CYCLE_S;     // radians per second (primary wave)
+
+    function animate(timestamp) {
+      const t = timestamp / 1000;        // current time in seconds
+
+      for (let i = 0; i < hexes.length; i++) {
+        const h = hexes[i];
+
+        let brightness;
+
+        if (h.isPassive) {
+          brightness = 0;
+        } else {
+          // Primary diagonal wave
+          const w1 = Math.sin(t * omega - h.phase1 * TWO_PI * WAVE_WIDTH);
+
+          // Secondary perpendicular wave (slower, subtler → organic motion)
+          const w2 = Math.sin(t * omega * 0.55 - h.phase2 * TWO_PI * 0.9);
+
+          // Blend (primary dominant)
+          const combined = w1 * 0.72 + w2 * 0.28;
+
+          // Only show positive half, apply power curve for sharper peaks
+          brightness = combined > 0 ? Math.pow(combined, SHARPNESS) : 0;
+        }
+
+        // ── Apply to DOM ──────────────────────────────────────────────
+        // Glow layer opacity
+        glowEls[h.id].setAttribute('opacity', brightness.toFixed(3));
+
+        // Main hex fill opacity
+        mainEls[h.id].setAttribute('fill-opacity', (brightness * 0.88).toFixed(3));
+
+        // Stroke gets brighter when lit (outline always visible, just dimmer when off)
+        const strokeOp = h.isPassive ? 0.3 : (0.4 + brightness * 0.6);
+        mainEls[h.id].setAttribute('stroke-opacity', strokeOp.toFixed(3));
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    // Kick off
+    requestAnimationFrame(animate);
+  </script>
+</body>
+
+</html>

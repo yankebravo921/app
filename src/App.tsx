@@ -3,7 +3,8 @@ import { motion } from 'framer-motion';
 import Navbar from './components/Navbar';
 import Hero from './sections/Hero';
 import Services from './sections/Services';
-import Process from './sections/Process';
+import ProcessIntro from './sections/ProcessIntro';
+import InteractiveProcessMap from './sections/InteractiveProcessMap';
 import FeaturedWork from './sections/FeaturedWork';
 import Footer from './sections/Footer';
 import TextAnimation from './sections/TextAnimation';
@@ -57,7 +58,8 @@ function App() {
         </section>
 
         <section id="process">
-          <Process />
+          <ProcessIntro />
+          <InteractiveProcessMap />
         </section>
 
         <section id="work">
